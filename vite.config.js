@@ -29,9 +29,9 @@ export default defineConfig(({ mode }) => {
       }
     },
     define: {
-      'import.meta.env.VITE_LOCAL_IP': JSON.stringify(localIP),
-      'import.meta.env.VITE_BACKEND_URL': JSON.stringify(`http://${localIP}:3000`),
-      'import.meta.env.VITE_REACT_BACKEND_BASE': JSON.stringify(`http://${localIP}:3000/api`)
+      'VITE_LOCAL_IP': JSON.stringify(localIP),
+      'VITE_BACKEND_URL': JSON.stringify(`http://${localIP}:3000`),
+      'VITE_REACT_BACKEND_BASE': JSON.stringify(`http://${localIP}:3000/api`)
     }
   }
 })
