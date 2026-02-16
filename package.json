@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
      "detect-network": "node scripts/detect-network.js",
-    "dev": "npm run detect-network && vite --host",
-    "dev:local": "vite",
+    
+    "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
