@@ -1,12 +1,14 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-import { VITE_LOCAL_IP } from './src/api/Vite_React_Backend_Base'
-
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
+  // Load env variables
+  const env = loadEnv(mode, process.cwd(), 'VITE_') // Only VITE_ prefixed vars
 
-  const localIP = VITE_LOCAL_IP || 'localhost'
+  const localIP = env.VITE_LOCAL_IP || 'localhost'
+  const backendPort = env.VITE_BACKEND_PORT || 3000
+  const backendURL = env.VITE_BACKEND_URL || `http://${localIP}:${backendPort}`
+  const apiBase = env.VITE_REACT_BACKEND_BASE || `${backendURL}/api`
 
   return {
     plugins: [react()],
@@ -17,21 +19,21 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         '/api': {
-          target: `http://${localIP}:3000`,
+          target: `http://${localIP}:${backendPort}`,
           changeOrigin: true,
           secure: false
         },
         '/uploads': {
-          target: `http://${localIP}:3000`,
+          target: `http://${localIP}:${backendPort}`,
           changeOrigin: true,
           secure: false
         }
       }
     },
     define: {
-      'VITE_LOCAL_IP': JSON.stringify(localIP),
-      'VITE_BACKEND_URL': JSON.stringify(`http://${localIP}:3000`),
-      'VITE_REACT_BACKEND_BASE': JSON.stringify(`http://${localIP}:3000/api`)
+      'import.meta.env.VITE_LOCAL_IP': JSON.stringify(localIP),
+      'import.meta.env.VITE_BACKEND_URL': JSON.stringify(backendURL),
+      'import.meta.env.VITE_REACT_BACKEND_BASE': JSON.stringify(apiBase)
     }
   }
 })

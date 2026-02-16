@@ -4,8 +4,8 @@ export const VITE_BACKEND_PORT = import.meta.env.VITE_BACKEND_PORT;
 export const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 export const VITE_REACT_BACKEND_BASE = import.meta.env.VITE_REACT_BACKEND_BASE;
 
-// Optional aliases
 export const ViteBackendIP = VITE_REACT_BACKEND_BASE;
+
 
 
 // // export const ViteBackendIP = import.meta.env.VITE_REACT_BACKEND_BASE
