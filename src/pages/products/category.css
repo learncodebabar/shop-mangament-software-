@@ -1,0 +1,31 @@
+@media (max-width: 768px) {
+  .cate-btn {
+    font-size: 12px !important;
+    width: 208px;
+  }
+  .sale-history-header {
+    display: flex;
+    flex-direction: column;
+  }
+  .history-filter {
+    margin-top: 20px;
+  }
+  .history-csv {
+    width: 274px;
+  }
+  .cash-customer-header {
+    display: flex;
+    flex-direction: column;
+  }
+  .credit-cstmr {
+    width: 150px;
+    font-size: 14px !important;
+  }
+  .sale-history-headers {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .expenses-filter{
+    border: 1px ;
+  }
+}

@@ -1,0 +1,20 @@
+@media (max-width: 768px) {
+  .product-head {
+    flex-wrap: wrap;
+  }
+  .product-header {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .csv-btn {
+    font-size: 12px;
+  }
+  .barcode-btn {
+    width: 150px;
+    font-size: 12px;
+  }
+  .add-btn {
+    font-size: 12px;
+    height: 35px;
+  }
+}

@@ -1,0 +1,236 @@
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(179, 171, 171);
+  border-radius: 40px;
+}
+/* ===============================
+   BASE / UTILITIES
+================================ */
+.transition-all {
+  transition: all 0.3s ease;
+}
+
+.bi {
+  line-height: 1;
+}
+
+.z-40 {
+  z-index: 1020;
+}
+
+/* ===============================
+   SIDEBAR CORE
+================================ */
+
+/* Desktop */
+@media (min-width: 992px) {
+  .translate-x-0,
+  .-translate-x-full {
+    transform: translateX(0) !important;
+  }
+}
+
+/* Mobile Sidebar */
+@media (max-width: 991px) {
+  .d-lg-block {
+    display: block !important;
+  }
+
+  .-translate-x-full {
+    transform: translateX(-100%) !important;
+  }
+
+  .translate-x-0 {
+    transform: translateX(0) !important;
+  }
+
+  .bg-body-tertiary {
+    width: 260px !important;
+  }
+
+  main {
+    margin-left: 0 !important;
+    padding: 1rem !important;
+  }
+}
+
+/* ===============================
+   TABLE / PRODUCTS
+================================ */
+.table td,
+.table th {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.table td img {
+  max-width: 50px;
+  max-height: 50px;
+  object-fit: cover;
+}
+
+.table-bordered > :not(caption) > * > * {
+  border-color: #e5e7eb;
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(0, 123, 255, 0.05);
+}
+
+.badge {
+  font-size: 0.7rem;
+}
+
+/* ===============================
+   MODAL
+================================ */
+.modal-body img {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+@media (max-width: 991px) {
+  .modal-dialog {
+    margin: 1rem;
+    max-width: 95%;
+  }
+
+  .table td,
+  .table th {
+    font-size: 0.85rem;
+  }
+
+  .btn-sm {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .modal-body .row > [class*="col-"] {
+    margin-bottom: 1rem;
+  }
+}
+
+/* ===============================
+   SALES / POS
+================================ */
+
+/* Scroll areas */
+.flex-grow-1.overflow-auto {
+  max-height: calc(100vh - 160px);
+}
+
+/* Product Cards */
+.card.cursor-pointer {
+  transition: transform 0.2s;
+}
+
+.card.cursor-pointer:hover {
+  transform: translateY(-3px);
+}
+
+.card-img-top {
+  width: 100%;
+}
+
+.cart-item img {
+  max-width: 80px;
+  max-height: 80px;
+  object-fit: cover;
+}
+
+.category-btn {
+  height: 30px;
+  padding: 3px 10px;
+  background: none;
+  border: 1px solid;
+  border-radius: 10px;
+}
+
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(125px, 1fr));
+  gap: 20px;
+}
+
+.product-card {
+  height: 160px;
+  width: 140px;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card img {
+  height: 80px;
+  object-fit: cover;
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+}
+
+/* ===============================
+   RESPONSIVE
+================================ */
+@media (max-width: 991px) {
+  .d-flex.gap-4 {
+    flex-direction: column;
+  }
+
+  .w-30 {
+    width: 100% !important;
+  }
+
+  .card-body.flex-grow-1.overflow-auto {
+    max-height: 300px;
+  }
+
+  .card-body p,
+  .card-body h6,
+  .card-body span {
+    font-size: 0.85rem !important;
+  }
+
+  .form-control.form-control-lg {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .btn-group-sm .btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .d-flex.gap-2.flex-wrap {
+    justify-content: center;
+  }
+
+  .card-footer .btn {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .row {
+    margin: 0 20px;
+  }
+
+  .add-btn {
+    height: 50px;
+    width: 300px;
+  }
+}
+
+@media (max-width: 575px) {
+  .col-xl-3,
+  .col-lg-4,
+  .col-md-6 {
+    width: 120px;
+    flex: 0 0 auto;
+  }
+}
