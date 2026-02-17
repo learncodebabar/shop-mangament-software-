@@ -20,7 +20,7 @@ const getBackendURL = () => {
   }
 
   // Fallback to env variable
-  return ViteBackendIP || "http://localhost:3000/api";
+  return ViteBackendIP || "https://shop-mangament-softwarebe-production.up.railway.app/api";
 };
 
 const api = axios.create({

@@ -7,7 +7,7 @@ export const VITE_REACT_BACKEND_BASE = import.meta.env.VITE_REACT_BACKEND_BASE;
 // Make sure this file only exports the base URL
 // Comment out the env variable and hardcode it for now
 // export const ViteBackendIP = import.meta.env.VITE_REACT_BACKEND_BASE;
-export const ViteBackendIP = 'https://shop-mangament-software-be.vercel.app/api';
+export const ViteBackendIP = 'https://shop-mangament-softwarebe-production.up.railway.app/api';
 
 
 // // export const ViteBackendIP = import.meta.env.VITE_REACT_BACKEND_BASE

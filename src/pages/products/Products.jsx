@@ -5,6 +5,7 @@ import { API_ENDPOINTS } from "../../api/EndPoints";
 import { useNotifications } from "../../context/NotificationContext";
 import "./product.css";
 import { VITE_BACKEND_URL } from "../../config/config";
+
 export default function Products() {
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
@@ -59,15 +60,17 @@ export default function Products() {
 
   const fetchProducts = async () => {
     try {
+      setLoading(true);
       const res = await api.get(API_ENDPOINTS.PRODUCTS);
       const productsData = res.data.products || res.data || [];
       console.log("Fetched products:", productsData);
       setProducts(productsData);
       setFilteredProducts(productsData);
-      setLoading(false);
     } catch (err) {
       console.error("Error loading products:", err);
-      notify("error", "Error loading products");
+      console.error("Error response:", err.response?.data);
+      notify("error", err.response?.data?.message || "Error loading products");
+    } finally {
       setLoading(false);
     }
   };
@@ -77,7 +80,7 @@ export default function Products() {
       const res = await api.get(API_ENDPOINTS.CATEGORIES);
       setCategories(res.data.filter((c) => c.isActive) || []);
     } catch (err) {
-      console.error("Failed to load categories");
+      console.error("Failed to load categories:", err);
     }
   };
 
@@ -86,7 +89,7 @@ export default function Products() {
       const res = await api.get(API_ENDPOINTS.LOCATIONS);
       setLocations(res.data.filter((l) => l.isActive) || []);
     } catch (err) {
-      console.error("Failed to load locations");
+      console.error("Failed to load locations:", err);
     }
   };
 
@@ -367,44 +370,149 @@ export default function Products() {
     printWindow.document.close();
   };
 
+  // TEST MINIMAL PRODUCT FUNCTION
+  const testMinimalProduct = async () => {
+    try {
+      const testData = new FormData();
+      testData.append("name", "Test Product " + Date.now());
+      testData.append("sku", `TEST-${Date.now()}`);
+      testData.append("stock", "10");
+      testData.append("costPrice", "100");
+      testData.append("salePrice", "150");
+      
+      console.log("🧪 Testing with minimal data...");
+      const response = await api.post(API_ENDPOINTS.PRODUCTS, testData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      console.log("✅ Test success:", response);
+      notify("success", "Test product created!");
+      fetchProducts();
+    } catch (err) {
+      console.error("❌ Test failed:", err);
+      console.error("Test error response:", err.response?.data);
+      notify("error", err.response?.data?.message || "Test failed");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate required fields
+    if (!formData.name.trim()) {
+      notify("error", "Product name is required");
+      return;
+    }
+
     let barcodeValue = formData.barcode.trim() || generateBarcode();
 
     const data = new FormData();
-    data.append("name", formData.name);
-    data.append("sku", formData.sku);
+    data.append("name", formData.name.trim());
+    data.append("sku", formData.sku.trim() || `SKU-${Date.now()}`);
     data.append("barcode", barcodeValue);
 
-    if (formData.category.trim()) {
-      data.append("category", formData.category.trim());
+    // Handle category
+    if (formData.category) {
+      data.append("category", formData.category);
+      console.log("Category being sent:", formData.category);
     }
 
-    data.append("supplier", formData.supplier);
+    data.append("supplier", formData.supplier.trim());
 
-    if (formData.location.trim()) {
-      data.append("location", formData.location.trim());
+    // Handle location
+    if (formData.location) {
+      data.append("location", formData.location);
+      console.log("Location being sent:", formData.location);
     }
 
-    data.append("stock", formData.stock);
-    data.append("costPrice", formData.costPrice);
-    data.append("salePrice", formData.salePrice);
-    data.append("minStockAlert", formData.minStockAlert);
-    if (imageFile) data.append("image", imageFile);
+    // Ensure numbers are properly formatted
+    const stock = Number(formData.stock) || 0;
+    const costPrice = Number(formData.costPrice) || 0;
+    const salePrice = Number(formData.salePrice) || 0;
+    const minStockAlert = Number(formData.minStockAlert) || 10;
+
+    data.append("stock", stock);
+    data.append("costPrice", costPrice);
+    data.append("salePrice", salePrice);
+    data.append("minStockAlert", minStockAlert);
+    
+    if (imageFile) {
+      data.append("image", imageFile);
+      console.log("Image file:", imageFile.name, imageFile.type, imageFile.size);
+    }
+
+    // Log ALL FormData contents
+    console.log("📦 FULL FormData being sent:");
+    for (let pair of data.entries()) {
+      console.log(`  ${pair[0]}:`, pair[1]);
+    }
 
     try {
-      if (editingProduct) {
-        await api.put(API_ENDPOINTS.PRODUCT_BY_ID(editingProduct._id), data);
-        notify("success", "Product updated successfully!");
-      } else {
-        await api.post(API_ENDPOINTS.PRODUCTS, data);
-        notify("success", "Product added successfully!");
-      }
+      setLoading(true);
+      
+      // Log the exact URL being called
+      const url = editingProduct 
+        ? API_ENDPOINTS.PRODUCT_BY_ID(editingProduct._id)
+        : API_ENDPOINTS.PRODUCTS;
+      
+      console.log("📡 Sending request to:", url);
+      console.log("🔧 Method:", editingProduct ? "PUT" : "POST");
+      
+      const response = await (editingProduct 
+        ? api.put(url, data, { 
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (progressEvent) => {
+              console.log("Upload progress:", progressEvent.loaded / progressEvent.total);
+            }
+          })
+        : api.post(url, data, { 
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (progressEvent) => {
+              console.log("Upload progress:", progressEvent.loaded / progressEvent.total);
+            }
+          })
+      );
+      
+      console.log("✅ Success response:", response);
+      console.log("✅ Response data:", response.data);
+      
+      notify("success", editingProduct ? "Product updated successfully!" : "Product added successfully!");
+      
       setShowModal(false);
       resetForm();
       await fetchProducts();
     } catch (err) {
-      notify("error", err.response?.data?.message || "Failed to save product");
+      console.error("❌ ERROR OBJECT:", err);
+      
+      // Log everything about the error
+      if (err.response) {
+        // The request was made and the server responded with a status code
+        console.error("⚠️ Error Response Data:", err.response.data);
+        console.error("⚠️ Error Response Status:", err.response.status);
+        console.error("⚠️ Error Response Headers:", err.response.headers);
+        
+        // Try to parse error data if it's a string
+        if (typeof err.response.data === 'string') {
+          console.error("Error message string:", err.response.data);
+        }
+        
+        // Show specific error message
+        const errorMsg = err.response.data?.message || 
+                         err.response.data?.error ||
+                         err.response.data ||
+                         "Server error";
+        
+        notify("error", errorMsg);
+      } else if (err.request) {
+        // The request was made but no response was received
+        console.error("⚠️ No response received:", err.request);
+        notify("error", "No response from server. Check your connection.");
+      } else {
+        // Something happened in setting up the request
+        console.error("⚠️ Request setup error:", err.message);
+        notify("error", err.message);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -423,7 +531,8 @@ export default function Products() {
       notify("success", "Product deleted successfully!");
       await fetchProducts();
     } catch (err) {
-      notify("error", "Failed to delete product");
+      console.error("Delete error:", err);
+      notify("error", err.response?.data?.message || "Failed to delete product");
     }
   };
 
@@ -443,7 +552,7 @@ export default function Products() {
     });
     setImagePreview(
       product.image
-        ? `${VITE_BACKEND_URL}${product.image}`
+        ? getImageUrl(product.image)
         : "",
     );
     setImageFile(null);
@@ -468,7 +577,7 @@ export default function Products() {
     setImagePreview("");
   };
 
- const getImageUrl = (imagePath) => {
+  const getImageUrl = (imagePath) => {
     if (!imagePath) return '';
     
     // If it's already a full URL, return as is
@@ -477,14 +586,13 @@ export default function Products() {
     }
     
     // Remove any leading /api if it exists in the path
-    const cleanPath = imagePath.replace(/^\/api/, '');
+    const cleanPath = imagePath.replace(/^\/?(api\/)?/, '');
     
-    // Ensure the path starts with a slash
-    const normalizedPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+    // Ensure the path starts with uploads/
+    const normalizedPath = cleanPath.startsWith('uploads/') ? cleanPath : `uploads/${cleanPath}`;
     
-    return `${VITE_BACKEND_URL}${normalizedPath}`;
+    return `${VITE_BACKEND_URL}/${normalizedPath}`;
   };
-
 
   return (
     <div className="container-fluid">
@@ -534,6 +642,12 @@ export default function Products() {
             disabled={products.filter((p) => p.barcode).length === 0}
           >
             <i className="bi bi-upc-scan me-2"></i> Print All Barcodes
+          </button>
+          <button
+            className="btn btn-warning text-white"
+            onClick={testMinimalProduct}
+          >
+            <i className="bi bi-bug me-2"></i> Test Product
           </button>
           <button
             className="btn add-btn bg-primary text-white add-btn"
@@ -981,7 +1095,7 @@ export default function Products() {
                       >
                         <option value="">All</option>
                         {categories.map((cat) => (
-                          <option key={cat._id} value={cat.name}>
+                          <option key={cat._id} value={cat._id}>
                             {cat.name}
                           </option>
                         ))}
@@ -1010,7 +1124,7 @@ export default function Products() {
                       >
                         <option value="">All</option>
                         {locations.map((loc) => (
-                          <option key={loc._id} value={loc.name}>
+                          <option key={loc._id} value={loc._id}>
                             {loc.name}
                           </option>
                         ))}
@@ -1109,8 +1223,19 @@ export default function Products() {
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="btn btn-primary">
-                    {editingProduct ? "Update" : "Add"} Product
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Saving...
+                      </>
+                    ) : (
+                      editingProduct ? "Update" : "Add"
+                    )} Product
                   </button>
                 </div>
               </form>

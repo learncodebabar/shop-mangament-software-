@@ -119,6 +119,15 @@ export default function PermanentCredit() {
       : "Invalid Date";
   };
 
+  const formatReceiptDate = (dateInput) => {
+    if (!dateInput) return "N/A";
+    let date =
+      typeof dateInput === "string" ? parseISO(dateInput) : new Date(dateInput);
+    return isValid(date)
+      ? format(date, "dd MMM yyyy, hh:mm:ss a")
+      : "Invalid Date";
+  };
+
   // Summary calculations
   const totalCustomers = customers.length;
   const totalCreditGiven = customers.reduce(
@@ -181,7 +190,7 @@ export default function PermanentCredit() {
     notify("success", "Customer data exported successfully");
   };
 
-  // ALL IN ONE RECEIPT
+  // ALL IN ONE RECEIPT - CONSISTENT STYLING
   const printAllInOneReceipt = () => {
     if (salesHistory.length === 0) {
       notify("error", "No sales to print");
@@ -213,122 +222,257 @@ export default function PermanentCredit() {
     });
 
     const currentRemaining = selected.remainingDue || 0;
-
     const recoveredInPeriod = periodTotalCredit - currentRemaining;
     const recoveredAmount = recoveredInPeriod > 0 ? recoveredInPeriod : 0;
 
     const from = fromDate ? format(new Date(fromDate), "dd MMM yyyy") : "Start";
     const to = toDate ? format(new Date(toDate), "dd MMM yyyy") : "Today";
 
+    const receiptHTML = `
+      <div style="font-family: 'Courier New', monospace; max-width: 320px; margin: 0 auto; padding: 20px; background: white;">
+        <!-- Shop Header -->
+        <div style="text-align: center; margin-bottom: 20px; border-bottom: 3px double #000; padding-bottom: 15px;">
+          <h1 style="margin: 0; font-size: 24px; font-weight: bold;">${shopSettings?.shopName || 'My Shop'}</h1>
+          <p style="margin: 5px 0; font-size: 13px;">${shopSettings?.address || 'Main Bazar, City'}</p>
+          <p style="margin: 5px 0; font-size: 13px;">Tel: ${shopSettings?.phone || '03xx-xxxxxxx'}</p>
+          ${shopSettings?.email ? `<p style="margin: 5px 0; font-size: 12px;">${shopSettings.email}</p>` : ''}
+        </div>
+
+        <!-- Title -->
+        <div style="text-align: center; margin: 20px 0; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+          <h2 style="margin: 0; font-size: 18px; color: #d32f2f;">CONSOLIDATED CREDIT STATEMENT</h2>
+          <p style="margin: 5px 0; font-size: 14px; font-weight: bold;">${from} to ${to}</p>
+        </div>
+
+        <!-- Customer Info -->
+        <div style="margin-bottom: 20px; padding: 12px; background: #e3f2fd; border-radius: 5px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span><strong>Customer:</strong></span>
+            <span>${selected.name}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span><strong>Phone:</strong></span>
+            <span>${selected.phone || 'N/A'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span><strong>Total Receipts:</strong></span>
+            <span>${salesHistory.length}</span>
+          </div>
+        </div>
+
+        <!-- Items Table -->
+        <table style="width: 100%; font-size: 13px; margin-bottom: 20px; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 2px solid #000; border-top: 2px solid #000;">
+              <th style="text-align: left; padding: 8px 0;">Item</th>
+              <th style="text-align: center; padding: 8px 0;">Qty</th>
+              <th style="text-align: right; padding: 8px 0;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${allItems
+              .map(
+                (item) => `
+              <tr style="border-bottom: 1px dashed #ccc;">
+                <td style="text-align: left; padding: 6px 0;">${item.name.length > 25 ? item.name.substring(0, 22) + '...' : item.name}</td>
+                <td style="text-align: center; padding: 6px 0;">${item.qty}</td>
+                <td style="text-align: right; padding: 6px 0;">RS${item.total.toLocaleString()}</td>
+              </tr>
+            `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+
+        <!-- Summary -->
+        <div style="border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 15px 0; margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 16px; color: #c00;">
+            <span><strong>Total Credit Given:</strong></span>
+            <span><strong>RS${periodTotalCredit.toLocaleString()}</strong></span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 16px; color: #28a745;">
+            <span><strong>Recovered in Period:</strong></span>
+            <span><strong>RS${recoveredAmount.toLocaleString()}</strong></span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 18px; color: #d32f2f; border-top: 1px dashed #000; padding-top: 8px;">
+            <span><strong>Remaining Balance:</strong></span>
+            <span><strong>RS${currentRemaining.toLocaleString()}</strong></span>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="text-align: center; margin-top: 30px; padding-top: 15px; border-top: 3px double #000;">
+          <p style="margin: 5px 0; font-size: 14px; font-weight: bold;">Thank you for your continued trust!</p>
+          <p style="margin: 5px 0; font-size: 13px; color: #d32f2f;">Please clear remaining amount at your earliest</p>
+          <p style="margin: 10px 0 0 0; font-size: 11px; color: #666;">Statement generated on ${new Date().toLocaleString()}</p>
+        </div>
+      </div>
+    `;
+
     const printWindow = window.open("", "_blank");
     printWindow.document.write(`
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <meta charset="UTF-8">
-    <title>Consolidated Credit Statement - ${from} to ${to}</title>
-    <style>
-      body { font-family: Arial, sans-serif; margin: 0; padding: 20px; max-width: 400px; margin: auto; background: white; }
-      .receipt { border: 3px double #000; padding: 30px; border-radius: 15px; background: #fff; }
-      .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 4px double #000; }
-      .header h1 { margin: 0; font-size: 28px; }
-      .period { text-align: center; font-size: 18px; margin: 20px 0; color: #d32f2f; font-weight: bold; }
-      .info { display: flex; justify-content: space-between; margin: 15px 0; font-size: 16px; }
-      table { width: 100%; border-collapse: collapse; margin: 25px 0; font-size: 15px; }
-      th, td { padding: 12px; border-bottom: 1px solid #ddd; }
-      th { background: #f0f0f0; font-weight: bold; }
-      .summary { margin: 30px 0; padding: 20px; background: #f8f9fa; border-radius: 10px; }
-      .summary .row { display: flex; justify-content: space-between; margin: 15px 0; font-size: 18px; }
-      .total-credit { font-size: 20px; color: #c00; }
-      .recovered { font-size: 22px; color: #28a745; font-weight: bold; }
-      .remaining { font-size: 24px; color: #d32f2f; font-weight: bold; }
-      .footer { text-align: center; margin-top: 40px; font-size: 14px; color: #666; }
-      @media print { body { padding: 10px; } }
-    </style>
-  </head>
-  <body>
-    <div class="receipt">
-      <div class="header">
-        <h1>${shopSettings?.shopName || "SHOP PRO"}</h1>
-        <p>${
-          shopSettings?.address || "Your Trusted Store • Lahore, Pakistan"
-        }</p>
-        ${shopSettings?.phone ? `<p>Phone: ${shopSettings.phone}</p>` : ""}
-      </div>
-
-      <div class="period">
-        Credit STATEMENT<br>
-        ${from} to ${to}
-      </div>
-
-      <div class="info">
-        <div>
-          <strong>Customer:</strong> ${selected.name}<br>
-          <strong>Phone:</strong> ${selected.phone}
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Credit Statement - ${selected.name}</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          @media print {
+            body { margin: 0; padding: 15px; background: white; }
+            .no-print { display: none; }
+          }
+          body {
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+            background: #f0f2f5;
+          }
+          .receipt-wrapper {
+            max-width: 350px;
+            margin: 0 auto;
+          }
+          .print-button {
+            text-align: center;
+            margin: 20px 0;
+          }
+          .btn-print {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 30px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+          }
+          .btn-print:hover {
+            background: #0056b3;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="receipt-wrapper">
+          ${receiptHTML}
+          <div class="print-button no-print">
+            <button class="btn-print" onclick="window.print(); setTimeout(() => window.close(), 1000);">
+              🖨️ Print Statement
+            </button>
+          </div>
         </div>
-        <div>
-          <strong>Total Receipts:</strong> ${salesHistory.length}
-        </div>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Item</th>
-            <th class="text-center">Qty</th>
-            <th class="text-end">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${allItems
-            .map(
-              (item) => `
-            <tr>
-              <td>${item.name}</td>
-              <td class="text-center">${item.qty}</td>
-              <td class="text-end">RS${item.total.toLocaleString()}</td>
-            </tr>
-          `,
-            )
-            .join("")}
-        </tbody>
-      </table>
-
-      <div class="summary">
-        <div class="row total-credit">
-          <span>Total Credit Given</span>
-          <span>RS${periodTotalCredit.toLocaleString()}</span>
-        </div>
-        <div class="row recovered">
-          <span>Recovered in Period</span>
-          <span>RS${recoveredAmount.toLocaleString()}</span>
-        </div>
-        <div class="row remaining">
-          <span>Remaining Balance</span>
-          <span>RS${currentRemaining.toLocaleString()}</span>
-        </div>
-      </div>
-
-      <div class="footer">
-        <p>Thank you for your continued trust!</p>
-        <p>Please clear remaining amount at your earliest ❤️</p>
-      </div>
-    </div>
-  </body>
-  </html>
-`);
-
+        <script>
+          setTimeout(() => {
+            if (confirm('Print credit statement now?')) {
+              window.print();
+            }
+          }, 500);
+        </script>
+      </body>
+      </html>
+    `);
     printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => printWindow.print(), 800);
   };
 
-  // SINGLE RECEIPT PRINT
+  // SINGLE RECEIPT PRINT - CONSISTENT STYLING
   const printReceipt = (sale) => {
     if (!selected) return;
 
     const customerName = selected.name || "Customer";
     const customerPhone = selected.phone || "";
+
+    const subtotal = sale.items?.reduce((sum, item) => {
+      return sum + (item.qty * item.price);
+    }, 0) || 0;
+
+    const receiptHTML = `
+      <div style="font-family: 'Courier New', monospace; max-width: 300px; margin: 0 auto; padding: 20px; background: white;">
+        <!-- Shop Header -->
+        <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px dashed #000; padding-bottom: 15px;">
+          <h2 style="margin: 0; font-size: 22px; font-weight: bold;">${shopSettings?.shopName || 'My Shop'}</h2>
+          <p style="margin: 5px 0; font-size: 13px;">${shopSettings?.address || 'Main Bazar, City'}</p>
+          <p style="margin: 5px 0; font-size: 13px;">Tel: ${shopSettings?.phone || '03xx-xxxxxxx'}</p>
+        </div>
+
+        <!-- Receipt Info -->
+        <div style="margin-bottom: 15px; font-size: 13px; background: #f8f9fa; padding: 10px; border-radius: 5px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span><strong>Receipt #:</strong></span>
+            <span>${sale._id?.slice(-8).toUpperCase() || 'N/A'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span><strong>Date:</strong></span>
+            <span>${formatReceiptDate(sale.date)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span><strong>Customer:</strong></span>
+            <span>${customerName}</span>
+          </div>
+          ${customerPhone ? `
+            <div style="display: flex; justify-content: space-between;">
+              <span><strong>Phone:</strong></span>
+              <span>${customerPhone}</span>
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Items Table -->
+        <table style="width: 100%; font-size: 13px; margin-bottom: 15px; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 2px solid #000; border-top: 2px solid #000;">
+              <th style="text-align: left; padding: 8px 0;">Item</th>
+              <th style="text-align: center; padding: 8px 0;">Qty</th>
+              <th style="text-align: right; padding: 8px 0;">Price</th>
+              <th style="text-align: right; padding: 8px 0;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sale.items
+              .map(
+                (item) => `
+              <tr style="border-bottom: 1px dashed #ccc;">
+                <td style="text-align: left; padding: 6px 0;">${item.name?.length > 20 ? item.name.substring(0, 17) + '...' : item.name || 'Product'}</td>
+                <td style="text-align: center; padding: 6px 0;">${item.qty}</td>
+                <td style="text-align: right; padding: 6px 0;">RS${item.price.toLocaleString()}</td>
+                <td style="text-align: right; padding: 6px 0;">RS${(item.qty * item.price).toLocaleString()}</td>
+              </tr>
+            `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+
+        <!-- Summary -->
+        <div style="border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 12px 0; margin-bottom: 15px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span>Subtotal:</span>
+            <span>RS${subtotal.toLocaleString()}</span>
+          </div>
+          ${sale.discountPercent ? `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px; color: #dc3545;">
+              <span>Discount (${sale.discountPercent}%):</span>
+              <span>-RS${((subtotal * sale.discountPercent) / 100).toLocaleString()}</span>
+            </div>
+          ` : ''}
+          <div style="display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 2px solid #000; font-size: 16px; font-weight: bold; color: #d32f2f;">
+            <span>GRAND TOTAL:</span>
+            <span>RS${sale.total.toLocaleString()}</span>
+          </div>
+        </div>
+
+        <!-- Credit Notice -->
+        <div style="background: #ffebee; padding: 12px; text-align: center; margin: 20px 0; border-radius: 5px; border-left: 4px solid #d32f2f;">
+          <p style="margin: 0; font-size: 16px; font-weight: bold; color: #d32f2f;">
+            CREDIT AMOUNT: RS${sale.total.toLocaleString()}
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="text-align: center; margin-top: 25px; padding-top: 15px; border-top: 2px dashed #000;">
+          <p style="margin: 5px 0; font-size: 14px; font-weight: bold;">Thank you for your trust!</p>
+          <p style="margin: 5px 0; font-size: 13px; color: #d32f2f;">Please clear dues on time</p>
+          <p style="margin: 10px 0 0 0; font-size: 10px; color: #666;">Receipt generated on ${new Date().toLocaleString()}</p>
+        </div>
+      </div>
+    `;
 
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
@@ -341,88 +485,62 @@ export default function PermanentCredit() {
       <html>
       <head>
         <meta charset="UTF-8">
-        <title>Credit Receipt</title>
+        <title>Credit Receipt - ${sale._id?.slice(-8).toUpperCase()}</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; max-width: 80mm; margin: auto; background: white; }
-          .receipt { border: 2px dashed #000; padding: 20px; border-radius: 10px; background: #fff; }
-          .header { text-align: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #000; }
-          .header h2 { margin: 0; font-size: 20px; }
-          .info { display: flex; justify-content: space-between; margin: 10px 0; font-size: 14px; }
-          table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px; }
-          th, td { padding: 6px 2px; border-bottom: 1px dotted #999; }
-          th { text-align: left; font-weight: normal; }
-          .total { margin-top: 15px; padding-top: 10px; border-top: 2px solid #000; font-weight: bold; }
-          .grand-total { font-size: 18px; text-align: right; color: #c00; }
-          .credit { background: #ffebee; padding: 12px; text-align: center; margin: 15px 0; border-radius: 8px; font-size: 18px; color: #c00; }
-          .footer { text-align: center; margin-top: 25px; font-size: 12px; color: #666; }
-          @media print { body { padding: 5px; } }
+          @media print {
+            body { margin: 0; padding: 15px; background: white; }
+            .no-print { display: none; }
+          }
+          body {
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+            background: #f0f2f5;
+          }
+          .receipt-wrapper {
+            max-width: 320px;
+            margin: 0 auto;
+          }
+          .print-button {
+            text-align: center;
+            margin: 20px 0;
+          }
+          .btn-print {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 30px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+          }
+          .btn-print:hover {
+            background: #0056b3;
+          }
         </style>
       </head>
       <body>
-        <div class="receipt">
-          <div class="header">
-        <h1>${shopSettings?.shopName || "SHOP PRO"}</h1>
-        <p>${
-          shopSettings?.address || "Your Trusted Store • Lahore, Pakistan"
-        }</p>
-        ${shopSettings?.phone ? `<p>Phone: ${shopSettings.phone}</p>` : ""}
-      </div>
-
-          <div class="info">
-            <div>
-              <strong>Customer:</strong> ${customerName}<br>
-              ${customerPhone ? `<strong>Phone:</strong> ${customerPhone}` : ""}
-            </div>
-            <div>
-              <strong>Date:</strong> ${safeFormatDate(sale.date)}
-            </div>
-          </div>
-
-          <table>
-            <tbody>
-              ${sale.items
-                .map(
-                  (item) => `
-                <tr>
-                  <td>${item.name || "Item"}</td>
-                  <td style="text-align:center">${item.qty}</td>
-                  <td style="text-align:right">RS${item.price.toLocaleString()}</td>
-                  <td style="text-align:right">RS${(
-                    item.qty * item.price
-                  ).toLocaleString()}</td>
-                </tr>
-              `,
-                )
-                .join("")}
-            </tbody>
-          </table>
-
-          <div class="total">
-            <div class="info">
-              <span>Subtotal:</span>
-              <span>RS${(sale.subtotal || sale.total).toLocaleString()}</span>
-            </div>
-            <div class="grand-total">
-              <strong>Grand Total: RS${sale.total.toLocaleString()}</strong>
-            </div>
-          </div>
-
-          <div class="credit">
-            <strong>Credit AMOUNT: RS${sale.total.toLocaleString()}</strong>
-          </div>
-
-          <div class="footer">
-            <p>Thank you for your trust!</p>
-            <p>Please clear dues on time ❤️</p>
+        <div class="receipt-wrapper">
+          ${receiptHTML}
+          <div class="print-button no-print">
+            <button class="btn-print" onclick="window.print(); setTimeout(() => window.close(), 1000);">
+              🖨️ Print Receipt
+            </button>
           </div>
         </div>
+        <script>
+          setTimeout(() => {
+            if (confirm('Print receipt now?')) {
+              window.print();
+            }
+          }, 500);
+        </script>
       </body>
       </html>
     `);
 
     printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => printWindow.print(), 600);
   };
 
   const notify = (type, message) => {

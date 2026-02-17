@@ -1,15 +1,226 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import api from "../api/api";
 import { useNotifications } from "../context/NotificationContext";
 import { useTheme } from "../context/ThemeContext";
 import { API_ENDPOINTS } from "../api/EndPoints";
-// ✅ CRITICAL FIX: Add Html5QrcodeSupportedFormats import
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import "./SalesPOS.css";
 import { VITE_BACKEND_URL } from "../config/config";
 
+// Memoized Cart Item Component to prevent unnecessary re-renders
+const CartItem = React.memo(({ item, isMobile, updateItem, updateQty, getImageUrl, itemTotal }) => {
+  return (
+    <div className={isMobile ? "cart-item-mobile" : "d-flex mb-4 pb-4 border-bottom"}>
+      <img
+        src={getImageUrl(item.image)}
+        alt={item.name}
+        className={isMobile ? "me-3" : "rounded me-3"}
+        style={
+          isMobile
+            ? {}
+            : {
+                width: "80px",
+                height: "80px",
+                objectFit: "cover",
+              }
+        }
+        onError={(e) => {
+          e.target.src = "/placeholder-product.png";
+        }}
+      />
+      <div className="flex-grow-1">
+        <h6 className="mb-2">{item.name}</h6>
 
+        <div className="row g-2 mt-2 cart-detail">
+          <div className="col-6">
+            <label className="small text-muted">Price (RS)</label>
+            <input
+              type="number"
+              className="form-control form-control-sm"
+              value={item.customPrice}
+              onChange={(e) =>
+                updateItem(item.cartItemId || item._id, "customPrice", e.target.value)
+              }
+              autoComplete="off"
+            />
+          </div>
 
+          <div className="col-6">
+            <label className="small text-muted">Item Discount (RS)</label>
+            <input
+              type="number"
+              className="form-control form-control-sm"
+              value={item.itemDiscount}
+              onChange={(e) =>
+                updateItem(item.cartItemId || item._id, "itemDiscount", e.target.value)
+              }
+              autoComplete="off"
+            />
+          </div>
+
+          <div className="col-12">
+            <label className="small text-muted">Qty</label>
+            <div className="btn-group btn-group-sm w-100">
+              <button
+                className="btn btn-outline-secondary"
+                onClick={() => updateQty(item._id, item.qty - 1, item.cartItemId)}
+              >
+                <i className="bi bi-dash"></i>
+              </button>
+              <button className="btn btn-outline-secondary px-3">
+                {item.qty}
+              </button>
+              <button
+                className="btn btn-outline-secondary"
+                onClick={() => updateQty(item._id, item.qty + 1, item.cartItemId)}
+              >
+                <i className="bi bi-plus"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2 text-end fw-bold text-primary">
+          RS {itemTotal(item).toFixed(2)}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// Memoized Cart Content Component
+const CartContent = React.memo(({ 
+  cart, 
+  isMobile = false, 
+  updateItem, 
+  updateQty, 
+  getImageUrl, 
+  itemTotal,
+  subtotal,
+  discount,
+  setDiscount,
+  serviceCharge,
+  setServiceCharge,
+  taxRate,
+  setTaxRate,
+  globalDiscountAmount,
+  tax,
+  total,
+  loading,
+  handleCompleteSale
+}) => (
+  <>
+    <div
+      className={
+        isMobile
+          ? "mobile-cart-body"
+          : "card-body flex-grow-1 overflow-auto px-4"
+      }
+    >
+      {cart.length === 0 ? (
+        <div className="text-center py-5 text-muted">
+          <i className="bi bi-cart fs-1 mb-3 d-block"></i>
+          <p>No items added yet</p>
+          <small>Click on products or scan barcode</small>
+        </div>
+      ) : (
+        cart.map((item) => (
+          <CartItem
+            key={item.cartItemId || item._id}
+            item={item}
+            isMobile={isMobile}
+            updateItem={updateItem}
+            updateQty={updateQty}
+            getImageUrl={getImageUrl}
+            itemTotal={itemTotal}
+          />
+        ))
+      )}
+    </div>
+
+    {cart.length > 0 && (
+      <div
+        className={
+          isMobile ? "mobile-cart-footer" : "card-footer border-0 p-4"
+        }
+      >
+        <div className="mb-3">
+          <div className="d-flex justify-content-between mb-2">
+            <span>Subtotal</span>
+            <span>RS{subtotal.toFixed(2)}</span>
+          </div>
+          <div className="d-flex justify-content-between mb-2 align-items-center">
+            <span>Discount (%)</span>
+            <div className="d-flex align-items-center gap-2">
+              <input
+                type="number"
+                className="form-control form-control-sm"
+                style={{ width: "80px" }}
+                value={discount}
+                onChange={(e) => setDiscount(Number(e.target.value) || 0)}
+                min="0"
+                autoComplete="off"
+              />
+              <span className="text-danger">
+                -RS{globalDiscountAmount.toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          <div className="d-flex justify-content-between mb-2 align-items-center">
+            <span>Service (RS)</span>
+            <div className="d-flex align-items-center gap-2">
+              <input
+                type="number"
+                className="form-control form-control-sm"
+                style={{ width: "80px" }}
+                value={serviceCharge}
+                onChange={(e) =>
+                  setServiceCharge(Number(e.target.value) || 0)
+                }
+                min="0"
+                autoComplete="off"
+              />
+              <span className="text-primary">
+                +RS{serviceCharge.toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          <div className="d-flex justify-content-between mb-3 align-items-center">
+            <span>Tax (%)</span>
+            <div className="d-flex align-items-center gap-2">
+              <input
+                type="number"
+                className="form-control form-control-sm"
+                style={{ width: "80px" }}
+                value={taxRate}
+                onChange={(e) => setTaxRate(Number(e.target.value) || 0)}
+                min="0"
+                step="0.1"
+                autoComplete="off"
+              />
+              <span className="text-primary">+RS{tax.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className="d-flex justify-content-between fw-bold fs-4 border-top pt-3">
+            <span>Total</span>
+            <span>RS{total.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <button
+          className="btn btn-lg w-100 rounded-pill bg-primary text-white"
+          onClick={handleCompleteSale}
+          disabled={loading}
+        >
+          {loading ? "Processing..." : "Complete Order"}
+        </button>
+      </div>
+    )}
+  </>
+));
 
 export default function SalesPOS() {
   const [products, setProducts] = useState([]);
@@ -394,19 +605,23 @@ export default function SalesPOS() {
         );
         return;
       }
-      setCart(
-        cart.map((item) =>
-          item._id === product._id ? { ...item, qty: item.qty + 1 } : item,
-        ),
+      setCart(prevCart =>
+        prevCart.map((item) =>
+          item._id === product._id 
+            ? { ...item, qty: item.qty + 1 } 
+            : item
+        )
       );
     } else {
-      setCart([
-        ...cart,
+      // Add unique cartItemId to prevent input focus issues
+      setCart(prevCart => [
+        ...prevCart,
         {
           ...product,
           qty: 1,
           customPrice: product.salePrice,
           itemDiscount: 0,
+          cartItemId: `${product._id}-${Date.now()}-${Math.random()}`, // Unique ID for cart item
         },
       ]);
     }
@@ -414,30 +629,38 @@ export default function SalesPOS() {
     showAlertAndNotify("success", `${product.name} added to cart`);
   };
 
-  const updateItem = (id, field, value) => {
+  const updateItem = useCallback((cartItemId, field, value) => {
     const numValue = Number(value) || 0;
-    setCart(
-      cart.map((item) =>
-        item._id === id ? { ...item, [field]: numValue } : item,
-      ),
+    setCart(prevCart =>
+      prevCart.map((item) =>
+        (item.cartItemId || item._id) === cartItemId 
+          ? { ...item, [field]: numValue } 
+          : item
+      )
     );
-  };
+  }, []);
 
-  const updateQty = (id, qty) => {
-    const item = cart.find((i) => i._id === id);
-    const product = products.find((p) => p._id === id);
+  const updateQty = useCallback((productId, qty, cartItemId) => {
+    setCart(prevCart => {
+      const item = prevCart.find(i => (i.cartItemId || i._id) === (cartItemId || productId));
+      const product = products.find((p) => p._id === productId);
 
-    if (qty > product.stock) {
-      showAlertAndNotify("error", `Only ${product.stock} in stock!`);
-      return;
-    }
+      if (qty > product?.stock) {
+        showAlertAndNotify("error", `Only ${product?.stock} in stock!`);
+        return prevCart;
+      }
 
-    if (qty <= 0) {
-      setCart(cart.filter((item) => item._id !== id));
-    } else {
-      updateItem(id, "qty", qty);
-    }
-  };
+      if (qty <= 0) {
+        return prevCart.filter((item) => (item.cartItemId || item._id) !== (cartItemId || productId));
+      } else {
+        return prevCart.map((item) =>
+          (item.cartItemId || item._id) === (cartItemId || productId)
+            ? { ...item, qty: qty }
+            : item
+        );
+      }
+    });
+  }, [products]);
 
   const itemTotal = (item) => {
     const priceAfterDiscount =
@@ -571,9 +794,159 @@ export default function SalesPOS() {
     setShowSuccessModal(false);
   };
 
-  const handlePrintReceipt = () => {
-    window.print();
-  };
+const handlePrintReceipt = () => {
+  // Calculate values for receipt
+  const receiptSubtotal = lastSaleItems.reduce((sum, item) => {
+    const priceAfterDiscount = (item.customPrice || 0) - (item.itemDiscount || 0);
+    return sum + (priceAfterDiscount * item.qty);
+  }, 0);
+  
+  const receiptDiscountAmount = (receiptSubtotal * discount) / 100;
+  const receiptTax = (receiptSubtotal - receiptDiscountAmount) * (taxRate / 100);
+  
+  // Format date and time
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB');
+  const timeStr = now.toLocaleTimeString();
+  
+  // Generate receipt HTML
+  const receiptHTML = `
+    <div style="font-family: monospace; max-width: 300px; margin: 0 auto; padding: 20px;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="margin: 0; font-size: 20px;">${shopSettings?.shopName || 'My Shop'}</h2>
+        <p style="margin: 5px 0;">${shopSettings?.address || 'Main Bazar'}</p>
+        <p style="margin: 5px 0;">Tel: ${shopSettings?.phone || '03xx-xxxxxxx'}</p>
+      </div>
+      
+      <hr style="border: dashed 1px #000; margin: 15px 0;">
+      
+      <div style="font-size: 13px; margin-bottom: 15px;">
+        <p style="margin: 3px 0;"><strong>Date:</strong> ${dateStr}</p>
+        <p style="margin: 3px 0;"><strong>Time:</strong> ${timeStr}</p>
+        <p style="margin: 3px 0;"><strong>Receipt #:</strong> ${getShortSaleId()}</p>
+        ${lastSaleCustomerName ? `<p style="margin: 3px 0;"><strong>Customer:</strong> ${lastSaleCustomerName}</p>` : ''}
+        <p style="margin: 3px 0;"><strong>Cashier:</strong> ${shopSettings?.cashierName || 'POS User'}</p>
+      </div>
+      
+      <hr style="border: dashed 1px #000; margin: 15px 0;">
+      
+      <table style="width: 100%; font-size: 13px; margin-bottom: 15px;">
+        <thead>
+          <tr>
+            <th style="text-align: left; padding-bottom: 5px;">Item</th>
+            <th style="text-align: center; padding-bottom: 5px;">Qty</th>
+            <th style="text-align: right; padding-bottom: 5px;">Price</th>
+            <th style="text-align: right; padding-bottom: 5px;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lastSaleItems.map(item => {
+            const itemPrice = item.customPrice || 0;
+            const itemDiscount = item.itemDiscount || 0;
+            const finalPrice = itemPrice - itemDiscount;
+            const itemTotal = finalPrice * item.qty;
+            
+            return `
+              <tr>
+                <td style="text-align: left; padding: 3px 0;">
+                  ${item.name.length > 25 ? item.name.substring(0, 22) + '...' : item.name}
+                  ${itemDiscount > 0 ? `<br><small style="color: #666;">Disc: -RS${itemDiscount}</small>` : ''}
+                </td>
+                <td style="text-align: center; padding: 3px 0;">${item.qty}</td>
+                <td style="text-align: right; padding: 3px 0;">RS${finalPrice.toFixed(0)}</td>
+                <td style="text-align: right; padding: 3px 0;">RS${itemTotal.toFixed(0)}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+      
+      <hr style="border: dashed 1px #000; margin: 15px 0;">
+      
+      <div style="text-align: right; font-size: 14px; margin-bottom: 15px;">
+        <p style="margin: 5px 0;"><strong>Subtotal:</strong> RS${receiptSubtotal.toFixed(0)}</p>
+        ${discount > 0 ? `<p style="margin: 5px 0;"><strong>Discount (${discount}%):</strong> -RS${receiptDiscountAmount.toFixed(0)}</p>` : ''}
+        ${serviceCharge > 0 ? `<p style="margin: 5px 0;"><strong>Service Charge:</strong> RS${serviceCharge.toFixed(0)}</p>` : ''}
+        ${taxRate > 0 ? `<p style="margin: 5px 0;"><strong>Tax (${taxRate}%):</strong> RS${receiptTax.toFixed(0)}</p>` : ''}
+        <p style="margin: 10px 0; font-size: 18px; border-top: 2px solid #000; padding-top: 10px;">
+          <strong>TOTAL:</strong> RS${lastSaleTotal.toFixed(0)}
+        </p>
+      </div>
+      
+      ${lastSaleChange > 0 ? `
+        <div style="text-align: right; font-size: 14px; margin-bottom: 15px; color: #28a745;">
+          <p style="margin: 5px 0;"><strong>Paid:</strong> RS${(lastSaleTotal + lastSaleChange).toFixed(0)}</p>
+          <p style="margin: 5px 0;"><strong>Change:</strong> RS${lastSaleChange.toFixed(0)}</p>
+        </div>
+      ` : ''}
+      
+      <hr style="border: dashed 1px #000; margin: 20px 0;">
+      
+      <div style="text-align: center; font-size: 13px;">
+        <p style="margin: 5px 0;">Thank you for shopping with us!</p>
+        <p style="margin: 5px 0;">Please come again</p>
+        ${shopSettings?.footerMessage ? `<p style="margin: 5px 0;">${shopSettings.footerMessage}</p>` : ''}
+      </div>
+      
+      <div style="text-align: center; font-size: 11px; margin-top: 20px; color: #666;">
+        <p style="margin: 2px 0;">** This is a computer generated receipt **</p>
+        <p style="margin: 2px 0;">${new Date().toLocaleString()}</p>
+      </div>
+    </div>
+  `;
+
+  // Create print window
+  const printWindow = window.open('', '_blank');
+  
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Receipt - ${getShortSaleId()}</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          @media print {
+            body { 
+              margin: 0; 
+              padding: 20px;
+              background: white;
+            }
+          }
+          body {
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+            background: #f8f9fa;
+          }
+          .receipt-container {
+            max-width: 300px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+          }
+        </style>
+      </head>
+      <body>
+        <div class="receipt-container">
+          ${receiptHTML}
+        </div>
+        <script>
+          window.onload = function() {
+            window.print();
+            setTimeout(function() { 
+              window.close(); 
+            }, 1000);
+          };
+        </script>
+      </body>
+    </html>
+  `);
+  
+  printWindow.document.close();
+};
 
   const getShortSaleId = () => {
     if (typeof lastSaleId === "string") {
@@ -591,189 +964,6 @@ export default function SalesPOS() {
       : imagePath;
     return `${VITE_BACKEND_URL}/${cleanPath}`;
   };
-
-  // Cart Component (reusable for desktop & mobile)
-  const CartContent = ({ isMobile = false }) => (
-    <>
-      <div
-        className={
-          isMobile
-            ? "mobile-cart-body"
-            : "card-body flex-grow-1 overflow-auto px-4"
-        }
-      >
-        {cart.length === 0 ? (
-          <div className="text-center py-5 text-muted">
-            <i className="bi bi-cart fs-1 mb-3 d-block"></i>
-            <p>No items added yet</p>
-            <small>Click on products or scan barcode</small>
-          </div>
-        ) : (
-          cart.map((item) => (
-            <div
-              key={item._id}
-              className={
-                isMobile ? "cart-item-mobile" : "d-flex mb-4 pb-4 border-bottom"
-              }
-            >
-              <img
-                src={getImageUrl(item.image)}
-                alt={item.name}
-                className={isMobile ? "me-3" : "rounded me-3"}
-                style={
-                  isMobile
-                    ? {}
-                    : {
-                        width: "80px",
-                        height: "80px",
-                        objectFit: "cover",
-                      }
-                }
-                onError={(e) => {
-                  e.target.src = "/placeholder-product.png";
-                }}
-              />
-              <div className="flex-grow-1">
-                <h6 className="mb-2">{item.name}</h6>
-
-                <div className="row g-2 mt-2 cart-detail">
-                  <div className="col-6">
-                    <label className="small text-muted">Price (RS)</label>
-                    <input
-                      type="number"
-                      className="form-control form-control-sm"
-                      value={item.customPrice}
-                      onChange={(e) =>
-                        updateItem(item._id, "customPrice", e.target.value)
-                      }
-                    />
-                  </div>
-
-                  <div className="col-6">
-                    <label className="small text-muted">
-                      Item Discount (RS)
-                    </label>
-                    <input
-                      type="number"
-                      className="form-control form-control-sm"
-                      value={item.itemDiscount}
-                      onChange={(e) =>
-                        updateItem(item._id, "itemDiscount", e.target.value)
-                      }
-                    />
-                  </div>
-
-                  <div className="col-12">
-                    <label className="small text-muted">Qty</label>
-                    <div className="btn-group btn-group-sm w-100">
-                      <button
-                        className="btn btn-outline-secondary"
-                        onClick={() => updateQty(item._id, item.qty - 1)}
-                      >
-                        <i className="bi bi-dash"></i>
-                      </button>
-                      <button className="btn btn-outline-secondary px-3">
-                        {item.qty}
-                      </button>
-                      <button
-                        className="btn btn-outline-secondary"
-                        onClick={() => updateQty(item._id, item.qty + 1)}
-                      >
-                        <i className="bi bi-plus"></i>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-2 text-end fw-bold text-primary">
-                  RS {itemTotal(item).toFixed(2)}
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {cart.length > 0 && (
-        <div
-          className={
-            isMobile ? "mobile-cart-footer" : "card-footer border-0 p-4"
-          }
-        >
-          <div className="mb-3">
-            <div className="d-flex justify-content-between mb-2">
-              <span>Subtotal</span>
-              <span>RS{subtotal.toFixed(2)}</span>
-            </div>
-            <div className="d-flex justify-content-between mb-2 align-items-center">
-              <span>Discount (%)</span>
-              <div className="d-flex align-items-center gap-2">
-                <input
-                  type="number"
-                  className="form-control form-control-sm"
-                  style={{ width: "80px" }}
-                  value={discount}
-                  onChange={(e) => setDiscount(Number(e.target.value) || 0)}
-                  min="0"
-                />
-                <span className="text-danger">
-                  -RS{globalDiscountAmount.toFixed(2)}
-                </span>
-              </div>
-            </div>
-
-            <div className="d-flex justify-content-between mb-2 align-items-center">
-              <span>Service (RS)</span>
-              <div className="d-flex align-items-center gap-2">
-                <input
-                  type="number"
-                  className="form-control form-control-sm"
-                  style={{ width: "80px" }}
-                  value={serviceCharge}
-                  onChange={(e) =>
-                    setServiceCharge(Number(e.target.value) || 0)
-                  }
-                  min="0"
-                />
-                <span className="text-primary">
-                  +RS{serviceCharge.toFixed(2)}
-                </span>
-              </div>
-            </div>
-
-            <div className="d-flex justify-content-between mb-3 align-items-center">
-              <span>Tax (%)</span>
-              <div className="d-flex align-items-center gap-2">
-                <input
-                  type="number"
-                  className="form-control form-control-sm"
-                  style={{ width: "80px" }}
-                  value={taxRate}
-                  onChange={(e) => setTaxRate(Number(e.target.value) || 0)}
-                  min="0"
-                  step="0.1"
-                />
-                <span className="text-primary">+RS{tax.toFixed(2)}</span>
-              </div>
-            </div>
-
-            <div className="d-flex justify-content-between fw-bold fs-4 border-top pt-3">
-              <span>Total</span>
-              <span>RS{total.toFixed(2)}</span>
-            </div>
-          </div>
-
-          <button
-            className="btn btn-lg w-100 rounded-pill bg-primary text-white"
-            onClick={handleCompleteSale}
-            disabled={loading}
-          >
-            {loading ? "Processing..." : "Complete Order"}
-          </button>
-        </div>
-      )}
-    </>
-  );
 
   return (
     <div className="pos-container">
@@ -812,6 +1002,7 @@ export default function SalesPOS() {
                     placeholder="Search by name, barcode, or SKU..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    autoComplete="off"
                   />
                   <i className="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
                 </div>
@@ -1057,7 +1248,26 @@ export default function SalesPOS() {
             <div className="card-header border-0 py-4 px-4">
               <h4 className="mb-0">Current Order</h4>
             </div>
-            <CartContent />
+            <CartContent 
+              cart={cart}
+              isMobile={false}
+              updateItem={updateItem}
+              updateQty={updateQty}
+              getImageUrl={getImageUrl}
+              itemTotal={itemTotal}
+              subtotal={subtotal}
+              discount={discount}
+              setDiscount={setDiscount}
+              serviceCharge={serviceCharge}
+              setServiceCharge={setServiceCharge}
+              taxRate={taxRate}
+              setTaxRate={setTaxRate}
+              globalDiscountAmount={globalDiscountAmount}
+              tax={tax}
+              total={total}
+              loading={loading}
+              handleCompleteSale={handleCompleteSale}
+            />
           </div>
         </div>
       </div>
@@ -1083,7 +1293,26 @@ export default function SalesPOS() {
               onClick={() => setShowMobileCart(false)}
             ></button>
           </div>
-          <CartContent isMobile={true} />
+          <CartContent 
+            cart={cart}
+            isMobile={true}
+            updateItem={updateItem}
+            updateQty={updateQty}
+            getImageUrl={getImageUrl}
+            itemTotal={itemTotal}
+            subtotal={subtotal}
+            discount={discount}
+            setDiscount={setDiscount}
+            serviceCharge={serviceCharge}
+            setServiceCharge={setServiceCharge}
+            taxRate={taxRate}
+            setTaxRate={setTaxRate}
+            globalDiscountAmount={globalDiscountAmount}
+            tax={tax}
+            total={total}
+            loading={loading}
+            handleCompleteSale={handleCompleteSale}
+          />
         </div>
       )}
 
@@ -1149,6 +1378,7 @@ export default function SalesPOS() {
                         placeholder="Name or Phone..."
                         value={customerSearch}
                         onChange={(e) => setCustomerSearch(e.target.value)}
+                        autoComplete="off"
                       />
                       <select
                         className="form-select"
@@ -1180,6 +1410,7 @@ export default function SalesPOS() {
                               name: e.target.value,
                             })
                           }
+                          autoComplete="off"
                         />
                       </div>
                       <div className="col-6">
@@ -1194,6 +1425,7 @@ export default function SalesPOS() {
                               phone: e.target.value,
                             })
                           }
+                          autoComplete="off"
                         />
                       </div>
                     </div>
@@ -1237,6 +1469,7 @@ export default function SalesPOS() {
                                 onChange={(e) =>
                                   updatePayment(index, "amount", e.target.value)
                                 }
+                                autoComplete="off"
                               />
                             </div>
                             {payment.method !== "cash" && (
@@ -1255,6 +1488,7 @@ export default function SalesPOS() {
                                       e.target.value,
                                     )
                                   }
+                                  autoComplete="off"
                                 />
                               </div>
                             )}

@@ -9,9 +9,15 @@ export default function CashCustomers() {
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [shopSettings, setShopSettings] = useState(null);
+  
+  // Receipt modal state
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [selectedSale, setSelectedSale] = useState(null);
 
   useEffect(() => {
     fetchCashSales();
+    fetchShopSettings();
   }, []);
 
   const fetchCashSales = async () => {
@@ -22,6 +28,15 @@ export default function CashCustomers() {
     } catch (err) {
       alert("Error loading cash sales");
       setLoading(false);
+    }
+  };
+
+  const fetchShopSettings = async () => {
+    try {
+      const res = await api.get(API_ENDPOINTS.SHOP_SETTINGS);
+      setShopSettings(res.data);
+    } catch (err) {
+      console.error("Error loading shop settings:", err);
     }
   };
 
@@ -122,6 +137,235 @@ export default function CashCustomers() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const formatReceiptDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  };
+
+  // Print Receipt Function
+  const handlePrintReceipt = (sale) => {
+    setSelectedSale(sale);
+    
+    // Calculate values
+    const subtotal = sale.items?.reduce((sum, item) => {
+      const priceAfterDiscount = (item.price || 0) - (item.itemDiscount || 0);
+      return sum + (priceAfterDiscount * item.qty);
+    }, 0) || 0;
+    
+    const discountAmount = sale.discountPercent ? (subtotal * sale.discountPercent) / 100 : 0;
+    const tax = sale.tax || 0;
+    const serviceCharge = sale.serviceCharge || 0;
+    const change = (sale.paidAmount || 0) - (sale.total || 0);
+    
+    // Format date
+    const dateStr = formatReceiptDate(sale.createdAt);
+    
+    // Generate receipt HTML
+    const receiptHTML = `
+      <div style="font-family: 'Courier New', monospace; max-width: 300px; margin: 0 auto; padding: 20px; background: white;">
+        <!-- Shop Header -->
+        <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px dashed #000; padding-bottom: 15px;">
+          <h2 style="margin: 0; font-size: 22px; font-weight: bold;">${shopSettings?.shopName || 'My Shop'}</h2>
+          <p style="margin: 5px 0; font-size: 13px;">${shopSettings?.address || 'Main Bazar, City'}</p>
+          <p style="margin: 5px 0; font-size: 13px;">Tel: ${shopSettings?.phone || '03xx-xxxxxxx'}</p>
+          ${shopSettings?.email ? `<p style="margin: 5px 0; font-size: 12px;">${shopSettings.email}</p>` : ''}
+        </div>
+        
+        <!-- Receipt Info -->
+        <div style="margin-bottom: 15px; font-size: 13px; background: #f8f9fa; padding: 10px; border-radius: 5px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span><strong>Receipt #:</strong></span>
+            <span>${sale._id?.slice(-8).toUpperCase() || 'N/A'}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span><strong>Date:</strong></span>
+            <span>${dateStr}</span>
+          </div>
+          ${sale.customerName ? `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span><strong>Customer:</strong></span>
+              <span>${sale.customerName}</span>
+            </div>
+          ` : ''}
+          <div style="display: flex; justify-content: space-between;">
+            <span><strong>Cashier:</strong></span>
+            <span>${sale.cashierName || 'POS User'}</span>
+          </div>
+        </div>
+        
+        <!-- Items Table -->
+        <table style="width: 100%; font-size: 13px; margin-bottom: 15px; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 2px solid #000; border-top: 2px solid #000;">
+              <th style="text-align: left; padding: 8px 0;">Item</th>
+              <th style="text-align: center; padding: 8px 0;">Qty</th>
+              <th style="text-align: right; padding: 8px 0;">Price</th>
+              <th style="text-align: right; padding: 8px 0;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sale.items?.map(item => {
+              const itemPrice = item.price || 0;
+              const itemDiscount = item.itemDiscount || 0;
+              const finalPrice = itemPrice - itemDiscount;
+              const itemTotal = finalPrice * item.qty;
+              
+              return `
+                <tr style="border-bottom: 1px dashed #ccc;">
+                  <td style="text-align: left; padding: 6px 0;">
+                    ${item.name?.length > 25 ? item.name.substring(0, 22) + '...' : item.name || 'Product'}
+                    ${itemDiscount > 0 ? `<br><small style="color: #666;">Disc: -RS${itemDiscount}</small>` : ''}
+                  </td>
+                  <td style="text-align: center; padding: 6px 0;">${item.qty}</td>
+                  <td style="text-align: right; padding: 6px 0;">RS${finalPrice.toFixed(0)}</td>
+                  <td style="text-align: right; padding: 6px 0;">RS${itemTotal.toFixed(0)}</td>
+                </tr>
+              `;
+            }).join('') || '<tr><td colspan="4" style="text-align: center; padding: 10px;">No items</td></tr>'}
+          </tbody>
+        </table>
+        
+        <!-- Summary -->
+        <div style="border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 12px 0; margin-bottom: 15px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span>Subtotal:</span>
+            <span>RS${subtotal.toFixed(0)}</span>
+          </div>
+          ${sale.discountPercent ? `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px; color: #dc3545;">
+              <span>Discount (${sale.discountPercent}%):</span>
+              <span>-RS${discountAmount.toFixed(0)}</span>
+            </div>
+          ` : ''}
+          ${serviceCharge > 0 ? `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span>Service Charge:</span>
+              <span>+RS${serviceCharge.toFixed(0)}</span>
+            </div>
+          ` : ''}
+          ${tax > 0 ? `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span>Tax:</span>
+              <span>+RS${tax.toFixed(0)}</span>
+            </div>
+          ` : ''}
+          <div style="display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 2px solid #000; font-size: 16px; font-weight: bold;">
+            <span>TOTAL:</span>
+            <span>RS${(sale.total || 0).toFixed(0)}</span>
+          </div>
+        </div>
+        
+        <!-- Payment Details -->
+        <div style="margin-bottom: 15px; font-size: 13px;">
+          <div style="background: #e8f5e9; padding: 10px; border-radius: 5px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 14px;">Payment Details</h4>
+            ${sale.payments?.map(p => `
+              <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                <span>${p.method}:</span>
+                <span>RS${(p.amount || 0).toFixed(0)} ${p.detail ? `(${p.detail})` : ''}</span>
+              </div>
+            `).join('') || '<div>Cash: RS' + (sale.paidAmount || 0).toFixed(0) + '</div>'}
+            ${change > 0 ? `
+              <div style="display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #000; color: #28a745;">
+                <span>Change Returned:</span>
+                <span>RS${change.toFixed(0)}</span>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="text-align: center; margin-top: 20px; padding-top: 15px; border-top: 2px dashed #000;">
+          <p style="margin: 5px 0; font-size: 14px; font-weight: bold;">Thank you for shopping with us!</p>
+          <p style="margin: 5px 0; font-size: 12px;">Please come again</p>
+          ${shopSettings?.footerMessage ? `<p style="margin: 5px 0; font-size: 11px;">${shopSettings.footerMessage}</p>` : ''}
+          <p style="margin: 10px 0 0 0; font-size: 10px; color: #666;">This is a computer generated receipt</p>
+          <p style="margin: 2px 0; font-size: 10px; color: #666;">${new Date().toLocaleString()}</p>
+        </div>
+      </div>
+    `;
+
+    // Create print window
+    const printWindow = window.open('', '_blank');
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Receipt - ${sale._id?.slice(-8).toUpperCase() || 'Sale'}</title>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            @media print {
+              body { 
+                margin: 0; 
+                padding: 15px;
+                background: white;
+              }
+              .no-print { display: none; }
+            }
+            body {
+              font-family: 'Courier New', monospace;
+              margin: 0;
+              padding: 20px;
+              background: #f0f2f5;
+            }
+            .receipt-wrapper {
+              max-width: 320px;
+              margin: 0 auto;
+            }
+            .print-button {
+              text-align: center;
+              margin: 20px 0;
+            }
+            .btn-print {
+              background: #007bff;
+              color: white;
+              border: none;
+              padding: 10px 30px;
+              border-radius: 5px;
+              font-size: 16px;
+              cursor: pointer;
+            }
+            .btn-print:hover {
+              background: #0056b3;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="receipt-wrapper">
+            ${receiptHTML}
+            <div class="print-button no-print">
+              <button class="btn-print" onclick="window.print(); setTimeout(() => window.close(), 1000);">
+                🖨️ Print Receipt
+              </button>
+              <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                Click print, then close this window
+              </p>
+            </div>
+          </div>
+          <script>
+            // Auto print after a short delay
+            setTimeout(() => {
+              if (confirm('Print receipt now?')) {
+                window.print();
+              }
+            }, 500);
+          </script>
+        </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
   };
 
   // CSV Export Function
@@ -345,20 +589,21 @@ export default function CashCustomers() {
                   <th className="py-3">Amount Paid</th>
                   <th className="py-3">Sale Total</th>
                   <th className="py-3">Change</th>
-                  <th className="pe-3 py-3">Items</th>
+                  <th className="py-3">Items</th>
+                  <th className="pe-3 py-3">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="7" className="text-center py-5">
+                    <td colSpan="8" className="text-center py-5">
                       <div className="spinner-border text-primary" />
                       <p className="mt-2 text-muted">Loading cash sales...</p>
                     </td>
                   </tr>
                 ) : filteredSales.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="text-center py-5 text-muted">
+                    <td colSpan="8" className="text-center py-5 text-muted">
                       <i className="bi bi-inbox fs-1 d-block mb-2"></i>
                       No cash sales found for selected filters
                     </td>
@@ -402,10 +647,19 @@ export default function CashCustomers() {
                           2,
                         )}
                       </td>
-                      <td className="pe-3 py-3">
+                      <td className="py-3">
                         <span className="badge bg-info rounded-pill">
                           {sale.items?.length || 0} items
                         </span>
+                      </td>
+                      <td className="pe-3 py-3">
+                        <button
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => handlePrintReceipt(sale)}
+                          title="Print Receipt"
+                        >
+                          <i className="bi bi-printer"></i> Receipt
+                        </button>
                       </td>
                     </tr>
                   ))
